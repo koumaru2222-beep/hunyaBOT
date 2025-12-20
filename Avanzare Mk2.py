@@ -367,6 +367,8 @@ async def on_ready():
     await bot.change_presence(
         activity=discord.Game(name="/help でコマンド確認")
     )
+
+
 # ===============================
 # 起動
 # ===============================
