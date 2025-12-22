@@ -37,6 +37,8 @@ Coming Soon...
 https://github.com/AvanzareDeveloper-Team/hunyaBOT.git
 ```
 
+※ Forkしてからじゃないと出来ない場合もあるのでその時はGitHubページからForkする。
+
 ### 2. venvで仮想環境を作る
 
 他のプロジェクトと混ざらないように分けます
