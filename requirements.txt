@@ -5,4 +5,5 @@ python-dotenv
 pillow
 matplotlib
 VersaLog
+plyer
 Flask==2.3.3
