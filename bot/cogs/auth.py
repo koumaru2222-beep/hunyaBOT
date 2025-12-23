@@ -42,9 +42,16 @@ class AuthCog(commands.Cog):
     async def auth(self, interaction: discord.Interaction):
 
         class AuthView(View):
-            @discord.ui.button(label="認証する", style=discord.ButtonStyle.blurple)
-            async def auth_button(self, i: discord.Interaction, _):
-                await i.response.send_message(OAUTH_URL, ephemeral=True)
+            def __init__(self):
+                super().__init__()
+                self.add_item(
+                    discord.ui.Button(
+                        label="認証する",
+                        style=discord.ButtonStyle.url,
+                        url=OAUTH_URL
+                    )
+                )
+
 
         await interaction.response.send_message(
             "ボタンを押して認証してください",

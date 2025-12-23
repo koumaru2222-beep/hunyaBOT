@@ -67,6 +67,7 @@ pip3 install -r requirements.txt
 
 `.env.sample`を**コピー**して名前を`.env`に変更。
 .envにTokenなどを設定。
+`REDIRECT_URI`は`URL/auth`の形で（一番後ろに`/`は入りません）
 
 ### 6. 実行
 

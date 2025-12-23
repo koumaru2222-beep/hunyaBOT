@@ -1,7 +1,7 @@
 import threading
 import discord
 from discord.ext import commands
-from flask import Flask
+from flask import Flask, request
 
 from bot.config import BOT_TOKEN
 
@@ -10,6 +10,12 @@ app = Flask(__name__)
 @app.route("/")
 def home():
     return "Bot is running"
+
+@app.route("/auth")
+def auth():
+    code = request.args.get("code")
+    if not code: return "Error: 認証コードが無効です"
+    return f"/verifyで認証してください。認証コードは{code}です。"
 
 def run_flask():
     app.run(host="0.0.0.0", port=5000)
