@@ -18,7 +18,7 @@ app = Flask(__name__)
 def home():
     return "Bot is running"
 
-@app.route("/auth")
+@app.route("/callback")
 def auth():
     code = request.args.get("code")
     if not code:
