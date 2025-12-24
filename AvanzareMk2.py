@@ -3,11 +3,9 @@ import os
 import discord
 from discord.ext import commands
 from flask import Flask, request
-from VersaLog import *
 
 from bot.config import BOT_TOKEN
-
-logger = VersaLog(enum="detailed")
+from bot.cogs.auth import auth_codes, save
 
 # -----------------
 # Flask
@@ -19,11 +17,17 @@ def home():
     return "Bot is running"
 
 @app.route("/callback")
-def auth():
+def callback():
     code = request.args.get("code")
-    if not code:
-        return "Error: 認証コードが無効です"
-    return f"/verifyで認証してください。認証コードは {code} です。"
+    state = request.args.get("state")  # Discord user_id
+
+    if not code or not state:
+        return "認証に失敗しました"
+
+    auth_codes[state] = code
+    save("auth_codes", auth_codes)
+
+    return "✅ 認証完了しました。Discordに戻ってください。"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -32,26 +36,23 @@ def run_flask():
 # -----------------
 # Discord Bot
 # -----------------
-class Main(commands.Bot):
+class AvanzareMk2(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.members = True
-        intents.message_content = True
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        for f in os.listdir("bot/cogs"):
-            if f.endswith(".py"):
-                await self.load_extension(f"bot.cogs.{f[:-3]}")
+        await self.load_extension("bot.cogs.auth")
+        await self.tree.sync()
 
     async def on_ready(self):
-        await self.tree.sync()
-        logger.info(f"Login: {self.user}")
+        print(f"Login: {self.user}")
 
 # -----------------
 # Entry point
 # -----------------
 if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
-    bot = Main()
+    bot = AvanzareMk2()
     bot.run(BOT_TOKEN)
