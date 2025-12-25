@@ -8,9 +8,9 @@ import os
 DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# ===============================
+# --------------------------
 # データ管理
-# ===============================
+# --------------------------
 def load(name, default):
     path = os.path.join(DATA_DIR, f"{name}.json")
     if os.path.exists(path):
@@ -26,9 +26,9 @@ auth_data     = load("auth", {})
 banned_guilds = load("banned_guilds", [])
 auth_codes    = load("auth_codes", {})
 
-# ===============================
+# --------------------------
 # Cog
-# ===============================
+# --------------------------
 class AuthCog(commands.Cog):
     def __init__(self, bot, redirect_base_url):
         self.bot = bot
@@ -48,6 +48,9 @@ class AuthCog(commands.Cog):
             f"&state={user_id}"
         )
 
+    # --------------------------
+    # 認証コマンド
+    # --------------------------
     @commands.hybrid_command(name="auth", description="認証を開始します")
     async def auth(self, ctx):
         url = self.make_oauth_url(ctx.author.id)
@@ -55,9 +58,30 @@ class AuthCog(commands.Cog):
         view.add_item(discord.ui.Button(label="認証する", style=discord.ButtonStyle.url, url=url))
         await ctx.send("下のボタンから認証してください。", view=view, ephemeral=True)
 
-    # ---------------------------
+    # --------------------------
+    # 認証ロール設定コマンド（管理者用）
+    # --------------------------
+    @commands.hybrid_command(name="set_auth_role", description="認証ロールを設定します")
+    @commands.has_permissions(administrator=True)
+    async def set_auth_role(self, ctx, role: discord.Role):
+        auth_data[str(ctx.guild.id)] = role.id
+        save("auth", auth_data)
+        await ctx.send(f"✅ 認証ロールを設定しました: {role.name}", ephemeral=True)
+
+    # --------------------------
+    # 禁止サーバー追加コマンド（管理者用）
+    # --------------------------
+    @commands.hybrid_command(name="ban_server_add", description="禁止サーバーを追加します")
+    @commands.has_permissions(administrator=True)
+    async def ban_server_add(self, ctx, guild_id: str):
+        if guild_id not in banned_guilds:
+            banned_guilds.append(guild_id)
+            save("banned_guilds", banned_guilds)
+        await ctx.send(f"✅ 禁止サーバーを追加しました: {guild_id}", ephemeral=True)
+
+    # --------------------------
     # 自動認証ループ
-    # ---------------------------
+    # --------------------------
     @tasks.loop(seconds=5)
     async def auth_loop(self):
         from bot.config import CLIENT_ID, CLIENT_SECRET
@@ -66,6 +90,7 @@ class AuthCog(commands.Cog):
             if not user:
                 continue
 
+            # token取得
             async with self.bot.session.post(
                 "https://discord.com/api/oauth2/token",
                 data={
@@ -85,6 +110,7 @@ class AuthCog(commands.Cog):
 
             access_token = token["access_token"]
 
+            # guilds取得
             async with self.bot.session.get(
                 "https://discord.com/api/users/@me/guilds",
                 headers={"Authorization": f"Bearer {access_token}"}
@@ -93,6 +119,7 @@ class AuthCog(commands.Cog):
 
             user_guilds = {g["id"] for g in guilds}
 
+            # 禁止サーバーチェック
             if any(b in user_guilds for b in banned_guilds):
                 try:
                     await user.send("❌ 禁止サーバーに参加しているため認証できません")
@@ -102,6 +129,7 @@ class AuthCog(commands.Cog):
                 save("auth_codes", auth_codes)
                 continue
 
+            # ロール付与
             for guild in self.bot.guilds:
                 try:
                     member = await guild.fetch_member(int(user_id))
