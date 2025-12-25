@@ -1,14 +1,15 @@
+import discord
+from discord.ext import commands
 import threading
 from flask import Flask, request
-from discord.ext import commands
 from bot.cogs.auth import AuthCog
 from bot.config import BOT_TOKEN
 import os
 import json
 
-# ===============================
+# -----------------------------
 # Flask
-# ===============================
+# -----------------------------
 app = Flask(__name__)
 DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -43,18 +44,21 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
-# ===============================
+# -----------------------------
 # Discord Bot
-# ===============================
-bot = commands.Bot(command_prefix="!", intents=intents)
+# -----------------------------
+intents = discord.Intents.default()  # ← まず作る
+intents.members = True               # ← メンバー情報取得に必須
 
+bot = commands.Bot(command_prefix="!", intents=intents)  # ← ここで使用
+
+# Flask をスレッドで起動
 threading.Thread(target=run_flask, daemon=True).start()
 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-    # Render などの公開URLを Discord アプリのリダイレクト URI に設定
-    redirect_url = os.environ.get("REDIRECT_URI")  # 例: https://<your-render-app>.onrender.com
+    redirect_url = os.environ.get("REDIRECT_URI")  # Render で設定
     await bot.add_cog(AuthCog(bot, redirect_url))
 
 bot.run(BOT_TOKEN)
