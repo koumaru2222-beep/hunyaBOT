@@ -1,20 +1,20 @@
 import threading
 from flask import Flask, request
-from pyngrok import ngrok
 from discord.ext import commands
 from bot.cogs.auth import AuthCog
-
-import os
 from bot.config import BOT_TOKEN
+import os
+import json
 
 # ===============================
 # Flask
 # ===============================
 app = Flask(__name__)
-auth_codes_path = "data/auth_codes.json"
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
+auth_codes_path = os.path.join(DATA_DIR, "auth_codes.json")
 
 try:
-    import json
     with open(auth_codes_path, "r", encoding="utf-8") as f:
         auth_codes = json.load(f)
 except:
@@ -31,7 +31,7 @@ def home():
 @app.route("/callback")
 def callback():
     code = request.args.get("code")
-    state = request.args.get("state")  # Discord user_id
+    state = request.args.get("state")
     if not code or not state:
         return "認証に失敗しました"
 
@@ -44,14 +44,6 @@ def run_flask():
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
 # ===============================
-# ngrok
-# ===============================
-PORT = int(os.environ.get("PORT", 10000))
-public_url = ngrok.connect(PORT, "http")
-print(f"ngrok URL: {public_url}")
-print(f"Discord アプリのリダイレクト URI に設定してください: {public_url}/callback")
-
-# ===============================
 # Discord Bot
 # ===============================
 bot = commands.Bot(command_prefix="!")
@@ -61,6 +53,8 @@ threading.Thread(target=run_flask, daemon=True).start()
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-    await bot.add_cog(AuthCog(bot, public_url))
+    # Render などの公開URLを Discord アプリのリダイレクト URI に設定
+    redirect_url = os.environ.get("REDIRECT_URI")  # 例: https://<your-render-app>.onrender.com
+    await bot.add_cog(AuthCog(bot, redirect_url))
 
 bot.run(BOT_TOKEN)
