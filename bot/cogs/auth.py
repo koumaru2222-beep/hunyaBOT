@@ -63,104 +63,90 @@ class AuthCog(commands.Cog):
 
     @app_commands.command(name="auth", description="OAuth認証を行います")
     async def auth(self, interaction: discord.Interaction):
-        try:
-            await interaction.response.defer(ephemeral=True)
-
-            if not interaction.guild:
-                await interaction.followup.send("❌ サーバー内で実行してください", ephemeral=True)
-                return
-
-            url = self.make_oauth_url(interaction.user.id, interaction.guild.id)
-            await interaction.followup.send(f"🔐 **以下のURLから認証してください**\n{url}", ephemeral=True)
-
-        except Exception as e:
-            print(f"[AuthCog] /auth コマンドエラー: {e}")
+        await interaction.response.defer(ephemeral=True)
+        if not interaction.guild:
+            await interaction.followup.send("❌ サーバー内で実行してください", ephemeral=True)
+            return
+        url = self.make_oauth_url(interaction.user.id, interaction.guild.id)
+        await interaction.followup.send(f"🔐 **以下のURLから認証してください**\n{url}", ephemeral=True)
 
     # ---------- OAuth callback handler ----------
     async def handle_oauth(self, code: str, user_id: int, guild_id: int):
-        try:
-            async with aiohttp.ClientSession() as session:
-                token_resp = await session.post(
-                    "https://discord.com/api/oauth2/token",
-                    data={
-                        "client_id": CLIENT_ID,
-                        "client_secret": CLIENT_SECRET,
-                        "grant_type": "authorization_code",
-                        "code": code,
-                        "redirect_uri": f"{REDIRECT_URI}/callback",
-                    },
-                    headers={"Content-Type": "application/x-www-form-urlencoded"},
-                )
-
-                token_data = await token_resp.json()
-                access_token = token_data.get("access_token")
-                if not access_token:
-                    print("[AuthCog] アクセストークン取得失敗")
-                    return
-
-                guilds_resp = await session.get(
-                    "https://discord.com/api/users/@me/guilds",
-                    headers={"Authorization": f"Bearer {access_token}"}
-                )
-                user_guilds = await guilds_resp.json()
-
-            # 禁止サーバー判定
-            banned = self.load_banned_guilds()
-            if any(str(g["id"]) in banned for g in user_guilds):
-                await self.ban_user(user_id, guild_id)
+        async with aiohttp.ClientSession() as session:
+            token_resp = await session.post(
+                "https://discord.com/api/oauth2/token",
+                data={
+                    "client_id": CLIENT_ID,
+                    "client_secret": CLIENT_SECRET,
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": f"{REDIRECT_URI}/callback",
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            token_data = await token_resp.json()
+            access_token = token_data.get("access_token")
+            if not access_token:
+                print("Access token取得失敗")
                 return
 
-            # 自動ロール付与
-            await self.give_auto_role(user_id, guild_id)
+            guilds_resp = await session.get(
+                "https://discord.com/api/users/@me/guilds",
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+            user_guilds = await guilds_resp.json()
 
-        except Exception as e:
-            print(f"[AuthCog] OAuth処理エラー: {e}")
+        # 禁止サーバー判定
+        banned = self.load_banned_guilds()
+        if any(str(g["id"]) in banned for g in user_guilds):
+            await self.ban_user(user_id, guild_id)
+            return
+
+        # 自動ロール付与
+        await self.give_auto_role(user_id, guild_id)
 
     # ---------- BAN ----------
     async def ban_user(self, user_id: int, guild_id: int):
         guild = self.bot.get_guild(guild_id)
         if not guild:
-            print(f"[AuthCog] ban失敗: ギルド取得できず {guild_id}")
+            print(f"Guild {guild_id} not found")
             return
         try:
-            member = guild.get_member(user_id)
-            if not member:
-                member = await guild.fetch_member(user_id)
+            member = await guild.fetch_member(user_id)
             if member:
                 await member.ban(reason="禁止サーバーに参加しているため")
-                print(f"[AuthCog] {member} をBANしました")
-        except Exception as e:
-            print(f"[AuthCog] banエラー: {e}")
+                print(f"Banned {member} in guild {guild.name}")
+        except discord.NotFound:
+            print(f"Member {user_id} not found in guild {guild_id}")
 
     # ---------- 自動ロール ----------
     async def give_auto_role(self, user_id: int, guild_id: int):
         auto_roles = self.load_auto_roles()
         role_id = auto_roles.get(str(guild_id))
         if not role_id:
-            print(f"[AuthCog] 自動ロール未設定: guild={guild_id}")
+            print(f"No autorole set for guild {guild_id}")
             return
+
         guild = self.bot.get_guild(guild_id)
         if not guild:
-            print(f"[AuthCog] ギルド取得失敗: {guild_id}")
+            print(f"Guild {guild_id} not found")
             return
-        try:
-            member = guild.get_member(user_id)
-            if not member:
-                member = await guild.fetch_member(user_id)
 
+        try:
+            member = await guild.fetch_member(user_id)
             role = guild.get_role(int(role_id))
             if not role:
-                print(f"[AuthCog] ロール取得失敗: {role_id}")
+                print(f"Role {role_id} not found in guild {guild.name}")
                 return
 
             await member.add_roles(role, reason="OAuth認証完了")
-            print(f"[AuthCog] {member} にロール {role.name} を付与しました")
-        except Exception as e:
-            print(f"[AuthCog] 自動ロール付与エラー: {e}")
+            print(f"✅ Added role {role.name} to {member.display_name} in guild {guild.name}")
+        except discord.Forbidden:
+            print(f"Bot lacks permissions to add role {role.name} to {member.display_name}")
+        except discord.NotFound:
+            print(f"Member {user_id} not found in guild {guild_id}")
 
-    # ===============================
-    # 管理コマンド
-    # ===============================
+    # ---------- 管理コマンド ----------
     banned = app_commands.Group(name="banned", description="禁止サーバー管理（BOTオーナー専用）")
 
     @banned.command(name="add")
@@ -202,15 +188,12 @@ class AuthCog(commands.Cog):
     )
     async def set_auth_role(self, interaction: discord.Interaction, role: discord.Role):
         await interaction.response.defer(ephemeral=True)
-
         if not interaction.guild:
             await interaction.followup.send("❌ サーバー内で実行してください", ephemeral=True)
             return
-
         if not interaction.user.guild_permissions.administrator:
             await interaction.followup.send("❌ 管理者権限が必要です", ephemeral=True)
             return
-
         data = self.load_auto_roles()
         data[str(interaction.guild.id)] = str(role.id)
         self.save_auto_roles(data)
