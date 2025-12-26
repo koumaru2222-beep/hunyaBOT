@@ -189,18 +189,39 @@ class AuthCog(commands.Cog):
         await interaction.response.send_message(msg, ephemeral=True)
 
     # ---------- 自動ロール設定 ----------
-    @app_commands.command(name="set_autorole", description="認証後に付与するロールを設定")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def set_autorole(
-        self,
-        interaction: discord.Interaction,
-        role: discord.Role
-    ):
-        data = self.load_auto_roles()
-        data[str(interaction.guild.id)] = str(role.id)
-        self.save_auto_roles(data)
+    @app_commands.command(
+    name="set_auth_role",
+    description="認証後に付与するロールを設定（管理者専用）"
+)
+async def set_auth_role(
+    self,
+    interaction: discord.Interaction,
+    role: discord.Role
+):
+    # 即 defer（これが命）
+    await interaction.response.defer(ephemeral=True)
 
-        await interaction.response.send_message(
-            f"✅ 認証後ロールを {role.mention} に設定しました",
+    # サーバー内チェック
+    if not interaction.guild:
+        await interaction.followup.send(
+            "❌ サーバー内で実行してください",
             ephemeral=True
         )
+        return
+
+    # 管理者チェック（← これが正解）
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.followup.send(
+            "❌ 管理者権限が必要です",
+            ephemeral=True
+        )
+        return
+
+    data = self.load_auto_roles()
+    data[str(interaction.guild.id)] = str(role.id)
+    self.save_auto_roles(data)
+
+    await interaction.followup.send(
+        f"✅ 認証後ロールを **{role.name}** に設定しました",
+        ephemeral=True
+    )
