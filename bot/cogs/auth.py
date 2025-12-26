@@ -51,7 +51,7 @@ class AuthCog(commands.Cog):
             "&scope=identify%20guilds"
             f"&state={user_id}"
         )
-       print(redirect_uri) 
+        print(redirect_uri) 
     # --------------------------
     # 認証開始
     # --------------------------
